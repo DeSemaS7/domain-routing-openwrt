@@ -25,7 +25,7 @@ cat << EOF > /etc/hotplug.d/iface/30-vpnroute
 #!/bin/sh
 
 sleep 10
-ip route add table vpn default dev tun0
+ip route add table vpn default dev sg-tun
 EOF
     fi
 }
@@ -190,7 +190,7 @@ add_tunnel() {
         if grep -q "option user 'sing-box'" /etc/config/sing-box; then
             sed -i "s/	option user \'sing-box\'/	option user \'root\'/" /etc/config/sing-box
         fi
-        if grep -q "tun0" /etc/sing-box/config.json; then
+        if grep -q "tun-sg" /etc/sing-box/config.json; then
         printf "\033[32;1mConfig /etc/sing-box/config.json already exists\033[0m\n"
         else
 cat << 'EOF' > /etc/sing-box/config.json
@@ -201,7 +201,7 @@ cat << 'EOF' > /etc/sing-box/config.json
   "inbounds": [
     {
       "type": "tun",
-      "interface_name": "tun0",
+      "interface_name": "tun-sg",
       "domain_strategy": "ipv4_only",
       "inet4_address": "172.16.250.1/30",
       "auto_route": false,
@@ -211,11 +211,25 @@ cat << 'EOF' > /etc/sing-box/config.json
   ],
   "outbounds": [
     {
-      "type": "$TYPE",
-      "server": "$HOST",
-      "server_port": $PORT,
-      "method": "$METHOD",
-      "password": "$PASS"
+        "type": "vless",
+        "server": "IP",
+        "server_port": PORT,
+        "uuid": "",
+        "flow": "xtls-rprx-vision",
+        "tls": {
+          "enabled": true,
+          "insecure": false,
+          "server_name": "www.microsoft.com",
+          "utls": {
+            "enabled": true,
+            "fingerprint": "chrome"
+          },
+          "reality": {
+            "enabled": true,
+            "public_key": "",
+            "short_id": "9ca1791d417c19f8"
+          }
+        }
     }
   ],
   "route": {
@@ -339,9 +353,9 @@ add_zone() {
         printf "\033[32;1mCreate zone\033[0m\n"
 
         # Delete exists zone
-        zone_tun_id=$(uci show firewall | grep -E '@zone.*tun0' | awk -F '[][{}]' '{print $2}' | head -n 1)
+        zone_tun_id=$(uci show firewall | grep -E '@zone.*tun-sg' | awk -F '[][{}]' '{print $2}' | head -n 1)
         if [ "$zone_tun_id" == 0 ] || [ "$zone_tun_id" == 1 ]; then
-            printf "\033[32;1mtun0 zone has an identifier of 0 or 1. That's not ok. Fix your firewall. lan and wan zones should have identifiers 0 and 1. \033[0m\n"
+            printf "\033[32;1mtun-sg zone has an identifier of 0 or 1. That's not ok. Fix your firewall. lan and wan zones should have identifiers 0 and 1. \033[0m\n"
             exit 1
         fi
         if [ ! -z "$zone_tun_id" ]; then
@@ -373,7 +387,7 @@ add_zone() {
         elif [ "$TUNNEL" == awg ]; then
             uci set firewall.@zone[-1].network='awg0'
         elif [ "$TUNNEL" == singbox ] || [ "$TUNNEL" == ovpn ] || [ "$TUNNEL" == tun2socks ]; then
-            uci set firewall.@zone[-1].device='tun0'
+            uci set firewall.@zone[-1].device='tun-sg'
         fi
         if [ "$TUNNEL" == wg ] || [ "$TUNNEL" == awg ] || [ "$TUNNEL" == ovpn ] || [ "$TUNNEL" == tun2socks ]; then
             uci set firewall.@zone[-1].forward='REJECT'
